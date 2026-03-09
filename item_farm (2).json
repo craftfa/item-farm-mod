@@ -1,0 +1,92 @@
+package com.itemfarm.blockentity;
+
+import net.minecraft.block.BlockState;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
+import net.minecraft.entity.ItemEntity;
+
+public class ItemFarmBlockEntity extends BlockEntity {
+
+    private ItemStack targetItem = ItemStack.EMPTY;
+
+    // Cuántos items genera por pulso Redstone (configurable con NBT)
+    private int generateAmount = 8;
+
+    public ItemFarmBlockEntity(BlockPos pos, BlockState state) {
+        super(ModBlockEntities.ITEM_FARM_BLOCK_ENTITY, pos, state);
+    }
+
+    public ItemStack getTargetItem() {
+        return targetItem;
+    }
+
+    public void setTargetItem(ItemStack stack) {
+        this.targetItem = stack;
+    }
+
+    public int getGenerateAmount() {
+        return generateAmount;
+    }
+
+    /**
+     * Genera items al recibir una señal Redstone.
+     * Los dropea encima del bloque.
+     */
+    public void generateItems(World world, BlockPos pos) {
+        if (targetItem.isEmpty()) return;
+
+        int remaining = generateAmount;
+        while (remaining > 0) {
+            int stackSize = Math.min(remaining, targetItem.getMaxCount());
+            ItemStack drop = targetItem.copy();
+            drop.setCount(stackSize);
+            remaining -= stackSize;
+
+            // Posición encima del bloque con algo de variación
+            double x = pos.getX() + 0.5 + (world.random.nextDouble() - 0.5) * 0.4;
+            double y = pos.getY() + 1.1;
+            double z = pos.getZ() + 0.5 + (world.random.nextDouble() - 0.5) * 0.4;
+
+            ItemEntity itemEntity = new ItemEntity(world, x, y, z, drop);
+            itemEntity.setVelocity(
+                (world.random.nextDouble() - 0.5) * 0.1,
+                0.2,
+                (world.random.nextDouble() - 0.5) * 0.1
+            );
+            world.spawnEntity(itemEntity);
+        }
+
+        // Efecto de partículas y sonido
+        world.playSound(null, pos,
+            net.minecraft.sound.SoundEvents.BLOCK_DISPENSER_DISPENSE,
+            net.minecraft.sound.SoundCategory.BLOCKS,
+            1.0f, 1.0f + world.random.nextFloat() * 0.2f);
+    }
+
+    // --- NBT: Guardar y cargar estado ---
+
+    @Override
+    protected void writeNbt(NbtCompound nbt) {
+        super.writeNbt(nbt);
+        if (!targetItem.isEmpty()) {
+            NbtCompound itemNbt = new NbtCompound();
+            targetItem.writeNbt(itemNbt);
+            nbt.put("TargetItem", itemNbt);
+        }
+        nbt.putInt("GenerateAmount", generateAmount);
+    }
+
+    @Override
+    public void readNbt(NbtCompound nbt) {
+        super.readNbt(nbt);
+        if (nbt.contains("TargetItem")) {
+            targetItem = ItemStack.fromNbt(nbt.getCompound("TargetItem"));
+        }
+        if (nbt.contains("GenerateAmount")) {
+            generateAmount = nbt.getInt("GenerateAmount");
+        }
+    }
+}

@@ -1,0 +1,120 @@
+package com.itemfarm.recipe;
+
+import com.google.gson.JsonObject;
+import com.itemfarm.ItemFarmMod;
+import com.itemfarm.block.ModBlocks;
+import net.minecraft.inventory.CraftingInventory;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.network.PacketByteBuf;
+import net.minecraft.recipe.CraftingRecipe;
+import net.minecraft.recipe.RecipeSerializer;
+import net.minecraft.recipe.RecipeType;
+import net.minecraft.recipe.book.CraftingRecipeCategory;
+import net.minecraft.registry.DynamicRegistryManager;
+import net.minecraft.util.Identifier;
+import net.minecraft.world.World;
+
+/**
+ * Receta dinámica para craftear la granja de items.
+ *
+ * Patrón (mesa de crafteo 3x3):
+ *   [Hierro]  [Hierro]    [Hierro]
+ *   [Hierro]  [ITEM]      [Hierro]
+ *   [Hierro]  [Redstone]  [Hierro]
+ *
+ * El ITEM del centro determina qué farmea la granja.
+ */
+public class FarmRecipe implements CraftingRecipe {
+
+    private final Identifier id;
+
+    public FarmRecipe(Identifier id) {
+        this.id = id;
+    }
+
+    @Override
+    public boolean matches(CraftingInventory inventory, World world) {
+        if (inventory.getWidth() != 3 || inventory.getHeight() != 3) return false;
+
+        ItemStack center = inventory.getStack(4);
+        ItemStack bottom = inventory.getStack(7);
+
+        if (center.isEmpty()) return false;
+        if (center.getItem() == Items.IRON_INGOT) return false;
+        if (center.getItem() == Items.REDSTONE) return false;
+        if (bottom.getItem() != Items.REDSTONE) return false;
+
+        int[] ironSlots = {0, 1, 2, 3, 5, 6, 8};
+        for (int slot : ironSlots) {
+            if (inventory.getStack(slot).getItem() != Items.IRON_INGOT) return false;
+        }
+        return true;
+    }
+
+    @Override
+    public ItemStack craft(CraftingInventory inventory, DynamicRegistryManager registryManager) {
+        ItemStack center = inventory.getStack(4);
+        ItemStack result = new ItemStack(ModBlocks.ITEM_FARM);
+
+        net.minecraft.nbt.NbtCompound nbt = new net.minecraft.nbt.NbtCompound();
+        net.minecraft.nbt.NbtCompound itemNbt = new net.minecraft.nbt.NbtCompound();
+        ItemStack targetCopy = center.copy();
+        targetCopy.setCount(1);
+        targetCopy.writeNbt(itemNbt);
+        nbt.put("TargetItem", itemNbt);
+        nbt.putInt("GenerateAmount", 8);
+        result.setNbt(nbt);
+
+        result.setCustomName(net.minecraft.text.Text.literal(
+            "§6Granja de §e" + center.getName().getString()));
+
+        return result;
+    }
+
+    @Override
+    public boolean fits(int width, int height) {
+        return width >= 3 && height >= 3;
+    }
+
+    @Override
+    public ItemStack getOutput(DynamicRegistryManager registryManager) {
+        return new ItemStack(ModBlocks.ITEM_FARM);
+    }
+
+    @Override
+    public Identifier getId() {
+        return id;
+    }
+
+    @Override
+    public RecipeSerializer<?> getSerializer() {
+        return ItemFarmMod.FARM_RECIPE_SERIALIZER;
+    }
+
+    @Override
+    public RecipeType<?> getType() {
+        return RecipeType.CRAFTING;
+    }
+
+    @Override
+    public CraftingRecipeCategory getCategory() {
+        return CraftingRecipeCategory.MISC;
+    }
+
+    public static class Serializer implements RecipeSerializer<FarmRecipe> {
+
+        @Override
+        public FarmRecipe read(Identifier id, JsonObject json) {
+            return new FarmRecipe(id);
+        }
+
+        @Override
+        public FarmRecipe read(Identifier id, PacketByteBuf buf) {
+            return new FarmRecipe(id);
+        }
+
+        @Override
+        public void write(PacketByteBuf buf, FarmRecipe recipe) {}
+    }
+}
